@@ -1,0 +1,89 @@
+version: "3.3"
+volumes:
+  shared-workspace:
+networks:
+  spark-net:
+    driver: bridge
+
+services:
+  mariadb:
+    image: mariadb:latest
+    container_name: mariadb_container
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: queensland_plant
+      MYSQL_USER: vy
+      MYSQL_PASSWORD: password
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./db:/docker-entrypoint-initdb.d
+    networks:
+      - spark-net
+
+  spark-master:
+    image: uqteaching/cloudcomputing:spark-master-v1
+    container_name: spark-master
+    networks:
+      - spark-net
+    ports:
+      - "8080:8080"
+      - "7077:7077"
+    environment:
+      INIT_DAEMON_STEP: setup_spark
+      PYSPARK_PYTHON: /usr/bin/python3
+      PYSPARK_DRIVER_PYTHON: /usr/bin/python3
+    depends_on:
+      - mariadb
+
+  spark-worker-1:
+    image: uqteaching/cloudcomputing:spark-worker-v1
+    container_name: spark-worker-1
+    depends_on:
+      - spark-master
+    networks:
+      - spark-net
+    ports:
+      - "8081:8081"
+    environment:
+      SPARK_MASTER: spark://spark-master:7077
+      PYSPARK_PYTHON: /usr/bin/python3
+      PYSPARK_DRIVER_PYTHON: /usr/bin/python3
+
+  spark-worker-2:
+    image: uqteaching/cloudcomputing:spark-worker-v1
+    container_name: spark-worker-2
+    depends_on:
+      - spark-master
+    networks:
+      - spark-net
+    ports:
+      - "8082:8082"
+    environment:
+      SPARK_MASTER: spark://spark-master:7077
+      PYSPARK_PYTHON: /usr/bin/python3
+      PYSPARK_DRIVER_PYTHON: /usr/bin/python3
+
+
+  jupyter-notebook:
+    build:
+      context: .
+      dockerfile: Dockerfile.jupyter
+    container_name: jupyternb
+    depends_on:
+      - spark-master
+    expose:
+      - "8888"
+    networks:
+      - spark-net
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./nbs:/home/jovyan/work/nbs
+      - ./events:/tmp/spark-events
+    environment:
+      PYSPARK_PYTHON: /usr/bin/python3
+      PYSPARK_DRIVER_PYTHON: /usr/bin/python3
+      JUPYTER_ALLOW_ROOT: "1"
+    command: "start-notebook.sh --ip=0.0.0.0 --NotebookApp.token='' --notebook-dir=/home/jovyan/work/nbs"
+

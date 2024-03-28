@@ -1,0 +1,4 @@
+FROM jupyter/all-spark-notebook:latest
+USER root
+RUN wget https://downloads.mariadb.com/Connectors/java/connector-java-2.7.2/mariadb-java-client-2.7.2.jar -P /usr/local/spark/jars/
+USER ${NB_UID}
